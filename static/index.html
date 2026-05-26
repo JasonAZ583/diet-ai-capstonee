@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>DietAI</title>
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    :root{
+      --bg:#ffffff;
+      --surface:#f4f4f6;
+      --surface-2:#eceef1;
+      --ink:#0b0b0f;
+      --ink-2:#5b5f66;
+      --ink-3:#9aa0a6;
+      --line:rgba(0,0,0,.08);
+      --blue:#6ea8df;
+      --protein:#ef6e5b;
+      --fat:#f2c94c;
+      --carbs:#57c28a;
+      --user-bubble:#e6ebfa;
+      --ai-bubble:#f0f0f3;
+      --shadow:0 2px 12px rgba(0,0,0,.06);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+      --safe-top:env(safe-area-inset-top,0px);
+      --tabbar-h:84px;
+    }
+    html,body{height:100%}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Inter','Helvetica Neue',sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+      overscroll-behavior:none;
+    }
+    button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+    input,textarea{font:inherit;color:inherit;background:none;border:none;outline:none}
+
+    #app{min-height:100vh;padding-bottom:var(--tabbar-h);padding-top:var(--safe-top)}
+    .view{display:none;animation:fade .2s ease}
+    .view.active{display:block}
+    @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ---------- DASHBOARD ---------- */
+    .view-dashboard{padding:16px 20px 40px}
+    .date-label{font-size:11px;letter-spacing:1.2px;color:var(--ink-3);font-weight:600;margin-top:16px}
+    .page-title{font-size:36px;font-weight:800;letter-spacing:-0.6px;margin-top:6px;margin-bottom:24px}
+    .section-title{font-size:22px;font-weight:800;letter-spacing:-0.3px;margin:26px 0 16px}
+
+    .ring-wrap{display:flex;align-items:center;justify-content:space-between;padding:10px 0 8px}
+    .ring-side{flex:0 0 auto;text-align:center;width:80px}
+    .ring-side .num{font-size:28px;font-weight:800;line-height:1}
+    .ring-side .lbl{font-size:14px;color:var(--ink-3);margin-top:4px}
+    .ring-center{position:relative;width:210px;height:210px;margin:0 auto}
+    .ring-center svg{transform:rotate(-90deg)}
+    .ring-center .ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .ring-center .ring-num{font-size:48px;font-weight:800;line-height:1}
+    .ring-center .ring-lbl{font-size:14px;color:var(--ink-3);margin-top:6px}
+
+    .macro-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+    .macro{text-align:center}
+    .macro .bar{height:4px;border-radius:2px;background:var(--surface-2);overflow:hidden;margin-bottom:10px;position:relative}
+    .macro .bar::before{content:"";position:absolute;inset:0;width:var(--p,20%);background:var(--c,var(--ink-3));border-radius:2px}
+    .macro .name{font-size:15px;font-weight:600;color:var(--ink-2)}
+    .macro .val{font-size:17px;font-weight:700;margin-top:2px}
+
+    .toggle-pill{display:flex;justify-content:center;gap:0;margin-top:22px}
+    .toggle-pill button{padding:10px 22px;border-radius:999px;font-weight:700;font-size:15px;color:var(--ink-3)}
+    .toggle-pill button.active{background:#000;color:#fff}
+    .dots{display:flex;gap:6px;justify-content:center;margin-top:12px}
+    .dots span{width:6px;height:6px;border-radius:50%;background:var(--surface-2)}
+    .dots span.on{background:var(--ink-2)}
+
+    .insight-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .insight-card{background:var(--surface);border-radius:18px;padding:16px;min-height:140px}
+    .insight-card h3{font-size:17px;font-weight:800;margin-bottom:2px}
+    .insight-card .rng{font-size:13px;color:var(--ink-3);margin-bottom:10px}
+    .spark{width:100%;height:60px}
+
+    .search-row{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:14px;padding:12px 14px;margin-top:4px}
+    .search-row input{flex:1;font-size:15px}
+    .search-row input::placeholder{color:var(--ink-3)}
+    .search-row .barcode-btn{color:var(--ink-2);padding:4px}
+
+    .meal-list{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+
+    .meal-card{display:flex;align-items:center;gap:12px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+    .meal-card .avatar{width:44px;height:44px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto}
+    .meal-card .body{flex:1;min-width:0}
+    .meal-card .name{font-size:16px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .meal-card .meta{font-size:13px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .meal-card .drag{color:var(--ink-3);padding:6px}
+    .empty{color:var(--ink-3);font-size:14px;text-align:center;padding:14px}
+
+    /* ---------- FOOD LOG ---------- */
+    .view-foodlog{padding:calc(var(--safe-top) + 16px) 20px 40px}
+    .seg{display:flex;background:var(--surface);border-radius:999px;padding:4px;margin:8px 0 14px;gap:4px}
+    .seg button{flex:1;padding:10px 14px;border-radius:999px;font-weight:700;font-size:14px;color:var(--ink-2)}
+    .seg button.active{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .sub-view{animation:fade .2s ease}
+    .inv-summary{display:flex;gap:10px;margin:10px 0 12px}
+    .inv-summary .pill{flex:1;background:var(--surface);border-radius:14px;padding:12px;text-align:center}
+    .inv-summary .pill .n{font-size:20px;font-weight:800}
+    .inv-summary .pill .l{font-size:11px;color:var(--ink-3);letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+    .qty-ctrl{display:flex;align-items:center;gap:6px}
+    .qty-ctrl button{width:28px;height:28px;border-radius:50%;background:var(--surface);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center}
+    .qty-ctrl .q{min-width:36px;text-align:center;font-weight:700;font-size:14px}
+    .timeline{display:flex;flex-direction:column;gap:0}
+    .time-row{display:grid;grid-template-columns:72px 1fr;align-items:center;gap:10px;min-height:56px;border-bottom:1px solid var(--line);padding:6px 0}
+    .time-row .time-lbl{font-size:13px;color:var(--ink-2);font-weight:600}
+    .time-row.on-hour .time-lbl{background:var(--surface);border-radius:999px;padding:6px 10px;text-align:center;display:inline-block;width:fit-content}
+    .time-row .slot{display:flex;align-items:center;gap:10px}
+    .time-row .add-slot{width:28px;height:28px;border-radius:50%;background:var(--surface);color:var(--ink-2);font-size:20px;display:flex;align-items:center;justify-content:center}
+    .time-row .entry{flex:1}
+    .time-row .meal-card{margin:0;flex:1}
+
+    /* ---------- AI CHAT ---------- */
+    .view-ai{display:none;flex-direction:column;height:100vh;padding-bottom:var(--tabbar-h)}
+    .view-ai.active{display:flex}
+    .chat-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);padding-top:calc(var(--safe-top) + 14px)}
+    .chat-header .icon-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+    .chat-header .icon-btn.outline{border:1.5px solid var(--ink);}
+    .chat-title{font-size:17px;font-weight:700;flex:1;text-align:center;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chat-scroll{flex:1;overflow-y:auto;padding:16px 18px 8px;display:flex;flex-direction:column;gap:10px}
+    .bubble{max-width:82%;padding:12px 16px;border-radius:22px;font-size:15.5px;line-height:1.4;word-wrap:break-word;white-space:pre-wrap}
+    .bubble.me{align-self:flex-end;background:var(--user-bubble);border-bottom-right-radius:8px}
+    .bubble.ai{align-self:flex-start;background:var(--ai-bubble);border-bottom-left-radius:8px}
+    .bubble.typing{color:var(--ink-3)}
+    .chat-input-row{display:flex;align-items:center;gap:10px;padding:10px 16px calc(var(--safe-bottom) + 10px);background:#fff;border-top:1px solid var(--line)}
+    .chat-input-row .pill{flex:1;background:var(--surface);border-radius:999px;padding:12px 18px;font-size:15px}
+    .chat-input-row .pill::placeholder{color:var(--ink-3)}
+    .send-btn{width:40px;height:40px;border-radius:50%;background:var(--surface-2);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    .send-btn.ready{background:#000}
+
+    /* ---------- PROFILE ---------- */
+    .view-profile{padding:16px 20px 40px}
+    .profile-card{background:var(--surface);border-radius:18px;padding:16px;margin-bottom:12px}
+    .profile-card h3{font-size:15px;font-weight:800;margin-bottom:10px}
+    .field{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+    .field:last-child{border-bottom:none}
+    .field label{font-size:14px;color:var(--ink-2)}
+    .field input,.field select{width:100%;text-align:right;font-size:15px;font-weight:600}
+    .btn-primary{display:block;width:100%;background:#000;color:#fff;border-radius:999px;padding:14px;font-weight:700;font-size:16px;margin-top:14px}
+    .goals-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+    .goals-row .g{background:#fff;border-radius:12px;padding:10px;text-align:center;border:1px solid var(--line)}
+    .goals-row .g .n{font-size:18px;font-weight:800}
+    .goals-row .g .l{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+    /* ---------- TABBAR ---------- */
+    .tabbar{
+      position:fixed;left:0;right:0;bottom:0;height:var(--tabbar-h);
+      background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(20px);
+      -webkit-backdrop-filter:saturate(180%) blur(20px);
+      border-top:1px solid var(--line);
+      display:grid;grid-template-columns:repeat(5,1fr);
+      padding-bottom:var(--safe-bottom);
+      z-index:100;
+    }
+    .tabbar .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-3);font-size:11px;font-weight:600}
+    .tabbar .tab.active{color:var(--ink)}
+    .tabbar .tab svg{width:22px;height:22px}
+    .tabbar .fab{position:relative;display:flex;align-items:center;justify-content:center}
+    .tabbar .fab-btn{
+      width:56px;height:56px;border-radius:50%;background:#000;color:#fff;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 6px 18px rgba(0,0,0,.25);
+      transform:translateY(-14px);
+    }
+    .tabbar .fab-btn svg{width:24px;height:24px}
+
+    /* ---------- MODALS ---------- */
+    .modal{
+      position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:200;
+      animation:fadeIn .2s ease;
+    }
+    .modal.show{display:flex}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .sheet{background:#fff;width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px 20px calc(var(--safe-bottom) + 20px);max-height:88vh;overflow-y:auto;animation:slideUp .25s ease}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+    .sheet .grabber{width:40px;height:4px;background:var(--surface-2);border-radius:2px;margin:0 auto 14px}
+    .sheet h2{font-size:20px;font-weight:800;margin-bottom:4px}
+    .sheet p.sub{font-size:14px;color:var(--ink-3);margin-bottom:16px}
+    .sheet .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+    .sheet .action{background:var(--surface);border-radius:16px;padding:18px 14px;text-align:left}
+    .sheet .action .ic{font-size:24px;margin-bottom:6px}
+    .sheet .action .t{font-weight:700;font-size:15px}
+    .sheet .action .d{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+    .scanner-wrap{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:14px;overflow:hidden;margin-bottom:12px}
+    .scanner-wrap video,.scanner-wrap canvas{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+    .scanner-overlay{position:absolute;inset:12%;border:2px solid #fff;border-radius:12px;pointer-events:none}
+
+    /* ---------- CHAT DRAWER ---------- */
+    .drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:150}
+    .drawer-backdrop.show{opacity:1;pointer-events:auto}
+    .drawer{
+      position:fixed;top:0;left:0;bottom:0;width:82%;max-width:340px;
+      background:#fff;z-index:151;transform:translateX(-100%);transition:transform .25s ease;
+      display:flex;flex-direction:column;padding-top:var(--safe-top);
+      box-shadow:0 0 24px rgba(0,0,0,.18);
+    }
+    .drawer.show{transform:none}
+    .drawer-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+    .drawer-header h3{font-size:18px;font-weight:800}
+    .drawer-new{display:flex;align-items:center;gap:8px;margin:14px 16px;padding:12px 14px;background:var(--surface);border-radius:14px;font-weight:700;font-size:15px;width:calc(100% - 32px);text-align:left}
+    .drawer-new svg{width:18px;height:18px}
+    .drawer-list{flex:1;overflow-y:auto;padding:4px 10px 20px}
+    .drawer-list .section-lbl{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:1px;font-weight:700;padding:14px 10px 6px}
+    .drawer-item{display:flex;align-items:flex-start;gap:10px;padding:12px 10px;border-radius:12px;cursor:pointer;position:relative}
+    .drawer-item:hover{background:var(--surface)}
+    .drawer-item.active{background:var(--surface-2)}
+    .drawer-item .ttl{flex:1;min-width:0}
+    .drawer-item .ttl .t{font-size:14px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .drawer-item .ttl .s{font-size:12px;color:var(--ink-3);margin-top:2px}
+    .drawer-item .del{opacity:0;color:var(--ink-3);padding:4px}
+    .drawer-item:hover .del,.drawer-item.active .del{opacity:1}
+    .drawer-empty{text-align:center;color:var(--ink-3);font-size:14px;padding:30px 10px}
+
+    .toast{position:fixed;left:50%;bottom:calc(var(--tabbar-h) + 18px);transform:translateX(-50%);background:#000;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;z-index:300;opacity:0;pointer-events:none;transition:opacity .2s}
+    .toast.show{opacity:.95}
+
+    /* small helpers */
+    .hidden{display:none!important}
+    .center{text-align:center}
+    .row{display:flex;gap:10px;align-items:center}
+    .spacer{flex:1}
+
+    @media (min-width:560px){
+      #app{max-width:480px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh}
+      .tabbar{max-width:480px;left:50%;transform:translateX(-50%)}
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="view view-dashboard active" id="view-dashboard">
+    <div class="date-label" id="dash-date">LOADING…</div>
+    <h1 class="page-title">Dashboard</h1>
+
+    <h2 class="section-title">Food Log Focus</h2>
+
+    <div class="ring-wrap">
+      <div class="ring-side">
+        <div class="num" id="cal-remaining">0</div>
+        <div class="lbl">Remaining</div>
+      </div>
+      <div class="ring-center">
+        <svg width="210" height="210" viewBox="0 0 210 210">
+          <circle cx="105" cy="105" r="92" fill="none" stroke="#eceef1" stroke-width="16"/>
+          <circle id="ring-arc" cx="105" cy="105" r="92" fill="none" stroke="var(--blue)" stroke-width="16" stroke-linecap="round" stroke-dasharray="578" stroke-dashoffset="578"/>
+        </svg>
+        <div class="ring-inner">
+          <div class="ring-num" id="cal-consumed">0</div>
+          <div class="ring-lbl" id="ring-mode-lbl">Consumed</div>
+        </div>
+      </div>
+      <div class="ring-side">
+        <div class="num" id="cal-target">0</div>
+        <div class="lbl">Target</div>
+      </div>
+    </div>
+
+    <div class="macro-row">
+      <div class="macro">
+        <div class="bar" id="bar-protein" style="--c:var(--protein)"></div>
+        <div class="name">Protein</div>
+        <div class="val" id="val-protein">0 / 0g</div>
+      </div>
+      <div class="macro">
+        <div class="bar" id="bar-fat" style="--c:var(--fat)"></div>
+        <div class="name">Fat</div>
+        <div class="val" id="val-fat">0 / 0g</div>
+      </div>
+      <div class="macro">
+        <div class="bar" id="bar-carbs" style="--c:var(--carbs)"></div>
+        <div class="name">Carbs</div>
+        <div class="val" id="val-carbs">0 / 0g</div>
+      </div>
+    </div>
+
+    <div class="toggle-pill" id="toggle-mode">
+      <button class="active" data-mode="consumed">Consumed</button>
+      <button data-mode="remaining">Remaining</button>
+    </div>
+    <div class="dots"><span></span><span></span><span class="on"></span></div>
+
+    <h2 class="section-title">Insights &amp; Analytics</h2>
+    <div class="insight-grid">
+      <div class="insight-card">
+        <h3>Expenditure</h3>
+        <div class="rng" id="expenditure-range">Last 7 days</div>
+        <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none">
+          <polyline fill="none" stroke="#ef6e5b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+            points="10,45 40,15 70,42 100,42 130,42 160,42 190,22"/>
+          <g fill="#ef6e5b">
+            <circle cx="10" cy="45" r="3"/><circle cx="40" cy="15" r="3"/>
+            <circle cx="70" cy="42" r="3"/><circle cx="100" cy="42" r="3"/>
+            <circle cx="130" cy="42" r="3"/><circle cx="160" cy="42" r="3"/>
+            <circle cx="190" cy="22" r="3"/>
+          </g>
+        </svg>
+      </div>
+      <div class="insight-card">
+        <h3>Weight Trend</h3>
+        <div class="rng" id="weight-range">Last 7 days</div>
+        <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none">
+          <polyline fill="none" stroke="#7a8fd6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+            points="10,36 190,34"/>
+          <circle cx="100" cy="35" r="3" fill="#7a8fd6"/>
+        </svg>
+      </div>
+    </div>
+
+    <h2 class="section-title">Today's Meals</h2>
+    <div class="search-row">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-3)"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search-input" placeholder="Search for a food" />
+      <button class="barcode-btn" id="barcode-btn" aria-label="Scan barcode">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 5v14M6 5v14M9 5v14M12 5v10M12 17v2M15 5v14M18 5v14M21 5v14"/>
+        </svg>
+      </button>
+    </div>
+    <div class="meal-list" id="today-meals"></div>
+  </section>
+
+  <!-- ============ FOOD LOG (MEAL LOG + INVENTORY) ============ -->
+  <section class="view view-foodlog" id="view-foodlog">
+    <h1 class="page-title" style="margin-top:0">Food Log</h1>
+    <div class="seg" id="foodlog-seg">
+      <button class="active" data-sub="meallog">Meal Log</button>
+      <button data-sub="inventory">Inventory</button>
+    </div>
+    <div class="sub-view" id="sub-meallog">
+      <div class="timeline" id="timeline"></div>
+    </div>
+    <div class="sub-view hidden" id="sub-inventory">
+      <div class="search-row" style="margin-top:6px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-3)"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="inv-search" placeholder="Search vault" />
+        <button class="barcode-btn" id="inv-barcode-btn" aria-label="Enter barcode">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 5v14M6 5v14M9 5v14M12 5v10M12 17v2M15 5v14M18 5v14M21 5v14"/>
+          </svg>
+        </button>
+      </div>
+      <div class="inv-summary" id="inv-summary"></div>
+      <div class="meal-list" id="inventory-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ AI CHAT ============ -->
+  <section class="view view-ai" id="view-ai">
+    <div class="chat-header">
+      <button class="icon-btn" id="chat-menu" aria-label="Menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 7h16M4 12h10M4 17h16"/>
+        </svg>
+      </button>
+      <div class="chat-title" id="chat-title">DietAI</div>
+      <button class="icon-btn outline" id="chat-new" aria-label="New chat">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="chat-scroll" id="chat-scroll"></div>
+    <div class="chat-input-row">
+      <input class="pill" id="chat-input" placeholder="Message…" autocomplete="off" />
+      <button class="send-btn" id="send-btn" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12l18-8-8 18-2-8-8-2z"/>
+        </svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ PROFILE ============ -->
+  <section class="view view-profile" id="view-profile">
+    <div class="date-label">YOUR PLAN</div>
+    <h1 class="page-title">Profile</h1>
+
+    <div class="profile-card">
+      <h3>Current Goals</h3>
+      <div class="goals-row">
+        <div class="g"><div class="n" id="g-cal">—</div><div class="l">Cal</div></div>
+        <div class="g"><div class="n" id="g-p">—</div><div class="l">Protein</div></div>
+        <div class="g"><div class="n" id="g-c">—</div><div class="l">Carbs</div></div>
+        <div class="g"><div class="n" id="g-f">—</div><div class="l">Fat</div></div>
+      </div>
+    </div>
+
+    <div class="profile-card">
+      <h3>Body Stats</h3>
+      <div class="field"><label>Weight (kg)</label><input type="number" id="p-weight" /></div>
+      <div class="field"><label>Height (cm)</label><input type="number" id="p-height" /></div>
+      <div class="field"><label>Age</label><input type="number" id="p-age" /></div>
+      <div class="field"><label>Gender</label>
+        <select id="p-gender">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+      <div class="field"><label>Activity</label>
+        <select id="p-activity">
+          <option value="sedentary">Sedentary</option>
+          <option value="light">Light</option>
+          <option value="moderate" selected>Moderate</option>
+          <option value="active">Active</option>
+          <option value="very_active">Very active</option>
+        </select>
+      </div>
+      <div class="field"><label>Goal</label>
+        <select id="p-goal">
+          <option value="lose">Lose</option>
+          <option value="maintain" selected>Maintain</option>
+          <option value="gain">Gain</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="recalc-goals">Recalculate Goals</button>
+    </div>
+
+    <div class="profile-card">
+      <h3>Manual Override</h3>
+      <div class="field"><label>Calories</label><input type="number" id="m-cal" /></div>
+      <div class="field"><label>Protein (g)</label><input type="number" id="m-p" /></div>
+      <div class="field"><label>Carbs (g)</label><input type="number" id="m-c" /></div>
+      <div class="field"><label>Fat (g)</label><input type="number" id="m-f" /></div>
+      <button class="btn-primary" id="save-manual">Save Manual Goals</button>
+    </div>
+  </section>
+
+</div> <!-- /#app -->
+
+<!-- ============ BOTTOM NAV ============ -->
+<nav class="tabbar" role="tablist">
+  <button class="tab active" data-view="dashboard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+    <span>Dashboard</span>
+  </button>
+  <button class="tab" data-view="foodlog">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 5a5 5 0 0 1 9.5 7C19 16.5 12 21 12 21z"/></svg>
+    <span>Food Log</span>
+  </button>
+  <div class="tab fab">
+    <button class="fab-btn" id="fab-btn" aria-label="Add">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+  <button class="tab" data-view="ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.2l5.9-.9L12 3z"/></svg>
+    <span>AI</span>
+  </button>
+  <button class="tab" data-view="profile">
+    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18" r="1.6"/></svg>
+    <span>Profile</span>
+  </button>
+</nav>
+
+<!-- ============ QUICK ADD SHEET ============ -->
+<div class="modal" id="modal-quickadd">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2>Add Food</h2>
+    <p class="sub">Scan a barcode, search your vault, or log manually.</p>
+    <div class="actions">
+      <button class="action" data-act="scan">
+        <div class="ic">📸</div><div class="t">Scan Barcode</div><div class="d">Use camera</div>
+      </button>
+      <button class="action" data-act="barcode">
+        <div class="ic">🔢</div><div class="t">Enter Barcode</div><div class="d">Type it in</div>
+      </button>
+      <button class="action" data-act="vault">
+        <div class="ic">🧺</div><div class="t">From Vault</div><div class="d">Pick from pantry</div>
+      </button>
+      <button class="action" data-act="manual">
+        <div class="ic">✏️</div><div class="t">Manual Entry</div><div class="d">Type food info</div>
+      </button>
+      <button class="action" data-act="suggest">
+        <div class="ic">✨</div><div class="t">AI Meal Ideas</div><div class="d">Combine vault</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ GENERIC SHEET (reused) ============ -->
+<div class="modal" id="modal-generic">
+  <div class="sheet" id="generic-body">
+    <div class="grabber"></div>
+    <!-- dynamic -->
+  </div>
+</div>
+
+<!-- ============ SCANNER SHEET ============ -->
+<div class="modal" id="modal-scanner">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2>Scan Barcode</h2>
+    <p class="sub">Point camera at product barcode.</p>
+    <div class="scanner-wrap" id="scanner-wrap">
+      <div class="scanner-overlay"></div>
+    </div>
+    <button class="btn-primary" id="scanner-close">Cancel</button>
+  </div>
+</div>
+
+<!-- ============ CHAT HISTORY DRAWER ============ -->
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-header">
+    <h3>Chats</h3>
+    <button class="icon-btn" id="drawer-close" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <button class="drawer-new" id="drawer-new">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    New Chat
+  </button>
+  <div class="drawer-list" id="drawer-list"></div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= tiny utils ================= */
+const $ = (sel, el=document) => el.querySelector(sel);
+const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+const api = async (path, opts={}) => {
+  const r = await fetch(path, { headers: {'Content-Type':'application/json'}, ...opts });
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.status === 204 ? null : r.json();
+};
+const toast = (msg) => {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+};
+const food2emoji = (name='') => {
+  const n = name.toLowerCase();
+  if (/banana/.test(n)) return '🍌';
+  if (/apple/.test(n)) return '🍎';
+  if (/beef|steak|tenderloin/.test(n)) return '🥩';
+  if (/chicken/.test(n)) return '🍗';
+  if (/egg/.test(n)) return '🥚';
+  if (/rice/.test(n)) return '🍚';
+  if (/bread|toast/.test(n)) return '🍞';
+  if (/milk/.test(n)) return '🥛';
+  if (/cheese/.test(n)) return '🧀';
+  if (/pizza/.test(n)) return '🍕';
+  if (/salad|lettuce|greens/.test(n)) return '🥗';
+  if (/fish|salmon|tuna/.test(n)) return '🐟';
+  if (/avocado/.test(n)) return '🥑';
+  if (/broccoli/.test(n)) return '🥦';
+  if (/nut|almond|peanut/.test(n)) return '🥜';
+  if (/chocolate|cocoa/.test(n)) return '🍫';
+  if (/coffee/.test(n)) return '☕';
+  return '🍽️';
+};
+const fmtTime = (iso) => {
+  const d = iso ? new Date(iso) : new Date();
+  let h = d.getHours(), m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  return { h, m, ampm, label: `${h}:${String(m).padStart(2,'0')}` };
+};
+const todayLabel = () => {
+  const d = new Date();
+  const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+};
+
+/* ================= state ================= */
+const state = {
+  dashboard: null,
+  vault: [],
+  mode: 'consumed', // or 'remaining'
+};
+
+/* ================= routing ================= */
+const showView = (name) => {
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $(`#view-${name}`).classList.add('active');
+  $$('.tabbar .tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'foodlog') loadFoodLog();
+  if (name === 'profile') loadProfile();
+  if (name === 'ai') { /* input focus intentionally skipped on mobile */ }
+};
+$$('.tabbar .tab[data-view]').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+
+/* ================= dashboard ================= */
+async function loadDashboard() {
+  $('#dash-date').textContent = todayLabel();
+  try {
+    const d = await api('/api/dashboard');
+    state.dashboard = d;
+    renderRing();
+    renderMacros();
+    renderTodayMeals(d.meals || []);
+  } catch (e) { console.error(e); toast('Failed to load dashboard'); }
+}
+function renderRing() {
+  const d = state.dashboard; if (!d) return;
+  const consumed = d.consumed.calories, target = d.goals.calories, remaining = d.remaining.calories;
+  const pct = Math.max(0, Math.min(1, consumed / (target || 1)));
+  const circ = 2 * Math.PI * 92;
+  $('#ring-arc').setAttribute('stroke-dasharray', circ);
+  $('#ring-arc').setAttribute('stroke-dashoffset', circ * (1 - pct));
+  $('#cal-target').textContent = Math.round(target);
+  $('#cal-remaining').textContent = Math.round(Math.max(0, remaining));
+  $('#ring-mode-lbl').textContent = state.mode === 'consumed' ? 'Consumed' : 'Remaining';
+  $('#cal-consumed').textContent = Math.round(state.mode === 'consumed' ? consumed : Math.max(0, remaining));
+}
+function renderMacros() {
+  const d = state.dashboard; if (!d) return;
+  const M = [
+    ['protein', d.consumed.protein, d.goals.protein],
+    ['fat',     d.consumed.fat,     d.goals.fat],
+    ['carbs',   d.consumed.carbs,   d.goals.carbs],
+  ];
+  M.forEach(([k, c, g]) => {
+    const pct = Math.max(0, Math.min(100, (c / (g || 1)) * 100));
+    $(`#bar-${k}`).style.setProperty('--p', `${pct}%`);
+    $(`#val-${k}`).textContent = `${Math.round(c)} / ${Math.round(g)}g`;
+  });
+}
+function renderTodayMeals(meals) {
+  const el = $('#today-meals');
+  if (!meals.length) { el.innerHTML = '<div class="empty">No meals logged yet today. Tap + to add.</div>'; return; }
+  el.innerHTML = meals.map(m => mealCardHtml(m)).join('');
+  el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Delete this meal?')) return;
+    await api(`/api/meals/${b.dataset.del}`, { method:'DELETE' });
+    loadDashboard();
+  }));
+}
+function mealCardHtml(m) {
+  const emoji = food2emoji(m.name);
+  const cal = Math.round(m.calories || 0);
+  const p = Math.round(m.protein || 0), f = Math.round(m.fat || 0), c = Math.round(m.carbs || 0);
+  const amt = m.amount ? `${Math.round(m.amount)}g` : '';
+  return `<div class="meal-card">
+    <div class="avatar">${emoji}</div>
+    <div class="body">
+      <div class="name">${escapeHtml(m.name)}</div>
+      <div class="meta">${cal} 🔥 ${p}P ${f}F ${c}C${amt ? ' · ' + amt : ''}</div>
+    </div>
+    <button class="drag" data-del="${m.id}" title="Delete">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+    </button>
+  </div>`;
+}
+function escapeHtml(s='') { return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+$$('#toggle-mode button').forEach(b => b.addEventListener('click', () => {
+  state.mode = b.dataset.mode;
+  $$('#toggle-mode button').forEach(x => x.classList.toggle('active', x === b));
+  renderRing();
+}));
+
+/* ================= food log timeline ================= */
+async function loadFoodLog() {
+  let meals = [];
+  try { meals = await api('/api/meals'); } catch (e) { console.error(e); }
+  const byHour = {};
+  for (const m of meals) {
+    const t = fmtTime(m.created_at);
+    const key = `${t.h}${t.ampm}`;
+    (byHour[key] ||= []).push({ ...m, _t: t });
+  }
+  // render 6 AM → 11 PM
+  const rows = [];
+  for (let hr = 6; hr <= 23; hr++) {
+    const h12 = hr % 12 === 0 ? 12 : hr % 12;
+    const ampm = hr < 12 ? 'AM' : 'PM';
+    const key = `${h12}${ampm}`;
+    const items = byHour[key] || [];
+    if (items.length) {
+      for (const it of items) {
+        rows.push(`<div class="time-row">
+          <div class="time-lbl">${it._t.label}</div>
+          <div class="slot entry">${mealCardHtml(it)}</div>
+        </div>`);
+      }
+    } else {
+      rows.push(`<div class="time-row on-hour">
+        <div class="time-lbl">${h12} ${ampm}</div>
+        <div class="slot"><button class="add-slot" data-hr="${hr}">+</button></div>
+      </div>`);
+    }
+  }
+  $('#timeline').innerHTML = rows.join('');
+  $$('#timeline [data-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Delete this meal?')) return;
+    await api(`/api/meals/${b.dataset.del}`, { method:'DELETE' });
+    loadFoodLog();
+  }));
+  $$('#timeline .add-slot').forEach(b => b.addEventListener('click', () => {
+    const hr = +b.dataset.hr; // 6..23
+    openManualEntry({ hour: hr });
+  }));
+}
+
+/* ---------- Food Log sub-tabs ---------- */
+$$('#foodlog-seg button').forEach(b => b.addEventListener('click', () => {
+  const sub = b.dataset.sub;
+  $$('#foodlog-seg button').forEach(x => x.classList.toggle('active', x === b));
+  $('#sub-meallog').classList.toggle('hidden', sub !== 'meallog');
+  $('#sub-inventory').classList.toggle('hidden', sub !== 'inventory');
+  if (sub === 'meallog') loadFoodLog();
+  if (sub === 'inventory') loadInventory();
+}));
+
+async function loadInventory() {
+  try { state.vault = await api('/api/vault'); }
+  catch (e) { console.error(e); toast('Failed to load vault'); return; }
+  renderInventory();
+}
+function renderInventory(filter='') {
+  const list = $('#inventory-list');
+  const sum = $('#inv-summary');
+  const items = state.vault
+    .filter(v => !filter || v.name.toLowerCase().includes(filter.toLowerCase()))
+    .sort((a,b) => (b.quantity||0) - (a.quantity||0));
+  const totalItems = state.vault.length;
+  const totalUnits = state.vault.reduce((s,v) => s + (v.quantity||0), 0);
+  const lowStock = state.vault.filter(v => (v.quantity||0) > 0 && v.quantity < 1).length;
+  sum.innerHTML = `
+    <div class="pill"><div class="n">${totalItems}</div><div class="l">Items</div></div>
+    <div class="pill"><div class="n">${Math.round(totalUnits*10)/10}</div><div class="l">Units</div></div>
+    <div class="pill"><div class="n">${lowStock}</div><div class="l">Low Stock</div></div>
+  `;
+  if (!items.length) { list.innerHTML = '<div class="empty">Vault is empty. Scan or enter a barcode to add items.</div>'; return; }
+  list.innerHTML = items.map(v => `
+    <div class="meal-card" data-vid="${v.id}">
+      <div class="avatar">${food2emoji(v.name)}</div>
+      <div class="body">
+        <div class="name">${escapeHtml(v.name)}</div>
+        <div class="meta">${Math.round(v.calories)} cal · ${Math.round(v.protein||0)}P ${Math.round(v.fat||0)}F ${Math.round(v.carbs||0)}C per 100g</div>
+      </div>
+      <div class="qty-ctrl">
+        <button data-qdec="${v.id}" aria-label="Decrement">−</button>
+        <div class="q">${Math.round((v.quantity||0)*10)/10}</div>
+        <button data-qinc="${v.id}" aria-label="Increment">+</button>
+        <button class="drag" data-del-vault="${v.id}" title="Remove" style="margin-left:6px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/></svg>
+        </button>
+      </div>
+    </div>
+  `).join('');
+  const updateQty = async (id, delta) => {
+    const item = state.vault.find(v => v.id === id); if (!item) return;
+    const next = Math.max(0, +((item.quantity||0) + delta).toFixed(2));
+    try {
+      await api(`/api/vault/${id}`, { method:'PATCH', body: JSON.stringify({ quantity: next }) });
+      item.quantity = next; renderInventory($('#inv-search').value);
+    } catch (e) { toast('Update failed'); }
+  };
+  list.querySelectorAll('[data-qinc]').forEach(b => b.addEventListener('click', () => updateQty(+b.dataset.qinc, +1)));
+  list.querySelectorAll('[data-qdec]').forEach(b => b.addEventListener('click', () => updateQty(+b.dataset.qdec, -1)));
+  list.querySelectorAll('[data-del-vault]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Remove from vault?')) return;
+    try { await api(`/api/vault/${b.dataset.delVault}`, { method:'DELETE' }); loadInventory(); }
+    catch (e) { toast('Delete failed'); }
+  }));
+}
+$('#inv-search')?.addEventListener?.('input', (e) => renderInventory(e.target.value));
+$('#inv-barcode-btn')?.addEventListener?.('click', () => openBarcodeLookup());
+
+/* ================= profile ================= */
+async function loadProfile() {
+  try {
+    const [p, g] = await Promise.all([api('/api/profile'), api('/api/goals')]);
+    $('#p-weight').value = p.weight || '';
+    $('#p-height').value = p.height || '';
+    $('#p-age').value = p.age || '';
+    if (p.gender) $('#p-gender').value = p.gender;
+    if (p.activity_level) $('#p-activity').value = p.activity_level;
+    if (p.goal_type) $('#p-goal').value = p.goal_type;
+    $('#g-cal').textContent = Math.round(g.calories);
+    $('#g-p').textContent = Math.round(g.protein) + 'g';
+    $('#g-c').textContent = Math.round(g.carbs) + 'g';
+    $('#g-f').textContent = Math.round(g.fat) + 'g';
+    if (g.is_manual) {
+      $('#m-cal').value = g.calories; $('#m-p').value = g.protein;
+      $('#m-c').value = g.carbs; $('#m-f').value = g.fat;
+    }
+  } catch (e) { console.error(e); }
+}
+$('#recalc-goals').addEventListener('click', async () => {
+  const body = {
+    weight: +$('#p-weight').value, height: +$('#p-height').value, age: +$('#p-age').value,
+    gender: $('#p-gender').value, activity_level: $('#p-activity').value, goal_type: $('#p-goal').value,
+  };
+  if (!body.weight || !body.height || !body.age) { toast('Fill weight, height, age'); return; }
+  try { await api('/api/goals/calculate', { method:'POST', body: JSON.stringify(body) }); toast('Goals updated'); loadProfile(); }
+  catch (e) { toast('Update failed'); }
+});
+$('#save-manual').addEventListener('click', async () => {
+  const body = { calories:+$('#m-cal').value, protein:+$('#m-p').value, carbs:+$('#m-c').value, fat:+$('#m-f').value };
+  if (!body.calories) { toast('Enter calories'); return; }
+  try { await api('/api/goals/manual', { method:'POST', body: JSON.stringify(body) }); toast('Manual goals saved'); loadProfile(); }
+  catch (e) { toast('Save failed'); }
+});
+
+/* ================= chat + sessions ================= */
+const CHAT_LS = 'dietai.chat.sessions.v1';
+const chat = { sessions: [], currentId: null, history: [] };
+
+function loadSessions() {
+  try { chat.sessions = JSON.parse(localStorage.getItem(CHAT_LS) || '[]'); }
+  catch (e) { chat.sessions = []; }
+}
+function saveSessions() {
+  try { localStorage.setItem(CHAT_LS, JSON.stringify(chat.sessions.slice(0, 50))); } catch (e) {}
+}
+function currentSession() {
+  return chat.sessions.find(s => s.id === chat.currentId) || null;
+}
+function newSession() {
+  const s = { id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), title: 'New chat', messages: [], updated: Date.now() };
+  chat.sessions.unshift(s);
+  chat.currentId = s.id;
+  chat.history = [];
+  saveSessions();
+  renderChatFromSession(s);
+  renderDrawerList();
+  return s;
+}
+function switchToSession(id) {
+  const s = chat.sessions.find(x => x.id === id); if (!s) return;
+  chat.currentId = id;
+  chat.history = s.messages.map(m => ({ role: m.role, content: m.content }));
+  renderChatFromSession(s);
+  renderDrawerList();
+  closeDrawer();
+}
+function deleteSession(id, ev) {
+  if (ev) ev.stopPropagation();
+  chat.sessions = chat.sessions.filter(s => s.id !== id);
+  saveSessions();
+  if (chat.currentId === id) {
+    if (chat.sessions.length) switchToSession(chat.sessions[0].id);
+    else { newSession(); chatIntro(); }
+  }
+  renderDrawerList();
+}
+function persistTurn(role, content) {
+  let s = currentSession();
+  if (!s) s = newSession();
+  s.messages.push({ role, content, ts: Date.now() });
+  s.updated = Date.now();
+  if (s.title === 'New chat' && role === 'user') {
+    s.title = content.length > 48 ? content.slice(0, 48) + '…' : content;
+    $('#chat-title').textContent = s.title;
+  }
+  // bump to top
+  chat.sessions = [s, ...chat.sessions.filter(x => x.id !== s.id)];
+  saveSessions();
+  renderDrawerList();
+}
+function renderChatFromSession(s) {
+  $('#chat-scroll').innerHTML = '';
+  $('#chat-title').textContent = s && s.title && s.title !== 'New chat' ? s.title : 'DietAI';
+  if (!s || !s.messages.length) { chatIntro(); return; }
+  for (const m of s.messages) {
+    addBubble(m.content, m.role === 'user' ? 'me' : 'ai');
+  }
+}
+
+function addBubble(text, who='ai', opts={}) {
+  const b = document.createElement('div');
+  b.className = `bubble ${who}${opts.typing ? ' typing':''}`;
+  b.textContent = text;
+  $('#chat-scroll').appendChild(b);
+  $('#chat-scroll').scrollTop = $('#chat-scroll').scrollHeight;
+  return b;
+}
+function chatIntro() {
+  if ($('#chat-scroll').children.length) return;
+  addBubble("Hi! I'm your DietAI assistant. Ask me about your calories, meals, or macros for today.");
+}
+
+function fmtRelativeTime(ts) {
+  const d = Math.floor((Date.now() - ts) / 1000);
+  if (d < 60) return 'just now';
+  if (d < 3600) return `${Math.floor(d/60)}m ago`;
+  if (d < 86400) return `${Math.floor(d/3600)}h ago`;
+  if (d < 86400*7) return `${Math.floor(d/86400)}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+function renderDrawerList() {
+  const el = $('#drawer-list');
+  if (!chat.sessions.length) { el.innerHTML = '<div class="drawer-empty">No chats yet.<br/>Start a new conversation.</div>'; return; }
+  // group by recency bucket
+  const today = [], week = [], older = [];
+  const now = Date.now();
+  for (const s of chat.sessions) {
+    const d = now - s.updated;
+    if (d < 86400_000) today.push(s);
+    else if (d < 86400_000*7) week.push(s);
+    else older.push(s);
+  }
+  const renderGroup = (label, arr) => arr.length ? `<div class="section-lbl">${label}</div>` + arr.map(s => `
+    <div class="drawer-item ${s.id===chat.currentId?'active':''}" data-id="${s.id}">
+      <div class="ttl"><div class="t">${escapeHtml(s.title || 'New chat')}</div><div class="s">${fmtRelativeTime(s.updated)} · ${s.messages.length} msg${s.messages.length===1?'':'s'}</div></div>
+      <button class="del" data-del="${s.id}" aria-label="Delete">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    </div>
+  `).join('') : '';
+  el.innerHTML = renderGroup('Today', today) + renderGroup('Previous 7 days', week) + renderGroup('Older', older);
+  el.querySelectorAll('.drawer-item').forEach(n => n.addEventListener('click', () => switchToSession(n.dataset.id)));
+  el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', (e) => deleteSession(b.dataset.del, e)));
+}
+
+function openDrawer() {
+  renderDrawerList();
+  $('#drawer').classList.add('show');
+  $('#drawer').setAttribute('aria-hidden','false');
+  $('#drawer-backdrop').classList.add('show');
+}
+function closeDrawer() {
+  $('#drawer').classList.remove('show');
+  $('#drawer').setAttribute('aria-hidden','true');
+  $('#drawer-backdrop').classList.remove('show');
+}
+$('#chat-menu').addEventListener('click', openDrawer);
+$('#drawer-close').addEventListener('click', closeDrawer);
+$('#drawer-backdrop').addEventListener('click', closeDrawer);
+$('#drawer-new').addEventListener('click', () => { newSession(); chatIntro(); closeDrawer(); });
+function ruleBasedAnswer(q, d) {
+  const lower = q.toLowerCase();
+  const meals = d?.meals || [];
+  const whenRe = /(what time|when).*(ate|had|eat|eaten)/;
+  if (whenRe.test(lower)) {
+    const target = lower.match(/(?:ate|had|eat|eaten)\s+(?:a |the |some )?([a-z ]+?)(?:\?|$| today| at)/);
+    if (target) {
+      const name = target[1].trim();
+      const hit = meals.find(m => m.name.toLowerCase().includes(name));
+      if (hit) {
+        const t = fmtTime(hit.created_at);
+        return `You ate the ${hit.name.toLowerCase()} at ${t.h}:${String(t.m).padStart(2,'0')} ${t.ampm} today.`;
+      }
+      return `I don't see ${name} in today's meals.`;
+    }
+  }
+  if (/how many calories/.test(lower) || /calories today/.test(lower) || /total calories/.test(lower)) {
+    return `You have consumed a total of ${Math.round(d?.consumed?.calories || 0)} calories today so far.`;
+  }
+  if (/remaining|left/.test(lower) && /calor/.test(lower)) {
+    return `You have ${Math.round(Math.max(0, d?.remaining?.calories || 0))} calories remaining today.`;
+  }
+  if (/protein/.test(lower)) return `Protein today: ${Math.round(d?.consumed?.protein||0)}g of ${Math.round(d?.goals?.protein||0)}g goal.`;
+  if (/carbs?/.test(lower)) return `Carbs today: ${Math.round(d?.consumed?.carbs||0)}g of ${Math.round(d?.goals?.carbs||0)}g goal.`;
+  if (/fat/.test(lower)) return `Fat today: ${Math.round(d?.consumed?.fat||0)}g of ${Math.round(d?.goals?.fat||0)}g goal.`;
+  if (/what.*(eat|ate)|meals today|what did i have/.test(lower)) {
+    if (!meals.length) return "You haven't logged any meals today yet.";
+    return "Today you've logged:\n" + meals.map(m => `• ${m.name} (${Math.round(m.calories)} cal)`).join('\n');
+  }
+  if (/goal|target/.test(lower)) return `Your targets: ${Math.round(d?.goals?.calories||0)} cal, ${Math.round(d?.goals?.protein||0)}g P, ${Math.round(d?.goals?.carbs||0)}g C, ${Math.round(d?.goals?.fat||0)}g F.`;
+  return null; // no local match — defer to AI / generic
+}
+async function answer(q) {
+  // Try LLM via /api/chat first, fall back to rule-based
+  try {
+    const res = await api('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: q, history: chat.history.slice(-8) }),
+    });
+    if (res && res.reply) return res.reply;
+  } catch (e) {
+    console.warn('chat api failed, falling back:', e);
+  }
+  let d = state.dashboard;
+  if (!d) { try { d = await api('/api/dashboard'); state.dashboard = d; } catch (e) {} }
+  const local = ruleBasedAnswer(q, d);
+  if (local) return local;
+  return "I can answer questions about calories, macros, and meals logged today. Try: 'How many calories today?' or 'What did I eat today?'";
+}
+async function sendChat() {
+  const input = $('#chat-input');
+  const q = input.value.trim(); if (!q) return;
+  input.value = ''; updateSendState();
+  addBubble(q, 'me');
+  $('#chat-title').textContent = q.length > 40 ? q.slice(0,40)+'…' : q;
+  const typing = addBubble('…', 'ai', { typing:true });
+  try {
+    const reply = await answer(q);
+    typing.classList.remove('typing');
+    typing.textContent = reply;
+    chat.history.push({ role:'user', content:q });
+    chat.history.push({ role:'assistant', content:reply });
+    persistTurn('user', q);
+    persistTurn('assistant', reply);
+  } catch (e) {
+    typing.classList.remove('typing');
+    typing.textContent = "Sorry — something went wrong.";
+  }
+}
+function updateSendState() {
+  $('#send-btn').classList.toggle('ready', !!$('#chat-input').value.trim());
+}
+$('#chat-input').addEventListener('input', updateSendState);
+$('#chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+$('#send-btn').addEventListener('click', sendChat);
+$('#chat-new').addEventListener('click', () => { newSession(); chatIntro(); });
+
+/* ================= FAB / quick add ================= */
+const openModal = (id) => $(`#${id}`).classList.add('show');
+const closeModal = (id) => $(`#${id}`).classList.remove('show');
+$$('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); }));
+
+$('#fab-btn').addEventListener('click', () => openQuickAdd());
+function openQuickAdd() { openModal('modal-quickadd'); }
+
+$$('#modal-quickadd .action').forEach(b => b.addEventListener('click', () => {
+  closeModal('modal-quickadd');
+  const act = b.dataset.act;
+  if (act === 'scan') openScanner();
+  else if (act === 'barcode') openBarcodeLookup();
+  else if (act === 'manual') openManualEntry();
+  else if (act === 'vault') openVaultPicker();
+  else if (act === 'suggest') openSuggestions();
+}));
+
+function openBarcodeLookup() {
+  const body = $('#generic-body');
+  body.innerHTML = `
+    <div class="grabber"></div>
+    <h2>Enter Barcode</h2>
+    <p class="sub">Type the product barcode number (UPC / EAN).</p>
+    <div class="field"><label>Barcode</label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="bc-input" placeholder="e.g. 0123456789012" autofocus /></div>
+    <button class="btn-primary" id="bc-lookup">Look Up</button>
+    <div id="bc-result" style="margin-top:14px"></div>
+  `;
+  openModal('modal-generic');
+  const input = $('#bc-input');
+  setTimeout(() => input.focus(), 60);
+  const doLookup = async () => {
+    const code = input.value.trim().replace(/\D/g, '');
+    if (!code) { toast('Enter a barcode'); return; }
+    const out = $('#bc-result');
+    out.innerHTML = '<div class="empty">Looking up…</div>';
+    try {
+      const r = await api(`/api/barcode/${code}`);
+      if (!r.found) { out.innerHTML = `<div class="empty">${escapeHtml(r.message || 'Not found')}</div>`; return; }
+      const p = r.product;
+      out.innerHTML = `
+        <div class="meal-card" style="margin:0">
+          <div class="avatar">${food2emoji(p.name)}</div>
+          <div class="body">
+            <div class="name">${escapeHtml(p.name)}</div>
+            <div class="meta">${Math.round(p.calories)} cal · ${Math.round(p.protein||0)}P ${Math.round(p.fat||0)}F ${Math.round(p.carbs||0)}C per 100g</div>
+          </div>
+        </div>
+        <div class="row" style="gap:10px;margin-top:12px">
+          <button class="btn-primary" id="bc-add-vault" style="margin-top:0">Add to Vault</button>
+          <button class="btn-primary" id="bc-log-now" style="margin-top:0;background:var(--surface-2);color:var(--ink)">Log 100g Now</button>
+        </div>
+      `;
+      $('#bc-add-vault').addEventListener('click', async () => {
+        try { await api(`/api/barcode/${code}/add`, { method:'POST' }); toast('Added to vault'); closeModal('modal-generic'); refreshCurrent(); }
+        catch (e) { toast('Add failed'); }
+      });
+      $('#bc-log-now').addEventListener('click', async () => {
+        try {
+          const m = { name:p.name, amount:100, servings:1, calories:p.calories||0, protein:p.protein||0, carbs:p.carbs||0, fat:p.fat||0 };
+          await api('/api/meals', { method:'POST', body: JSON.stringify(m) });
+          toast('Logged'); closeModal('modal-generic'); refreshCurrent();
+        } catch (e) { toast('Log failed'); }
+      });
+    } catch (e) { out.innerHTML = '<div class="empty">Lookup failed.</div>'; }
+  };
+  $('#bc-lookup').addEventListener('click', doLookup);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
+}
+
+function defaultTimeValue(hour) {
+  // Returns "HH:MM" for use in an <input type="time">.
+  const now = new Date();
+  if (Number.isInteger(hour)) { now.setHours(hour, 0, 0, 0); }
+  return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+}
+function defaultDateValue() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function openManualEntry(opts={}) {
+  const body = $('#generic-body');
+  const tval = defaultTimeValue(opts.hour);
+  const dval = defaultDateValue();
+  body.innerHTML = `
+    <div class="grabber"></div>
+    <h2>Manual Entry</h2>
+    <p class="sub">Log a meal — set the time if it wasn't right now.</p>
+    <div class="field"><label>Name</label><input id="me-name" /></div>
+    <div class="field"><label>Date</label><input type="date" id="me-date" value="${dval}" /></div>
+    <div class="field"><label>Time</label><input type="time" id="me-time" value="${tval}" /></div>
+    <div class="field"><label>Calories</label><input type="number" id="me-cal" /></div>
+    <div class="field"><label>Protein (g)</label><input type="number" id="me-p" /></div>
+    <div class="field"><label>Carbs (g)</label><input type="number" id="me-c" /></div>
+    <div class="field"><label>Fat (g)</label><input type="number" id="me-f" /></div>
+    <div class="field"><label>Amount (g)</label><input type="number" id="me-amt" value="100"/></div>
+    <button class="btn-primary" id="me-save">Log Meal</button>
+  `;
+  openModal('modal-generic');
+  setTimeout(() => $('#me-name').focus(), 60);
+  $('#me-save').addEventListener('click', async () => {
+    const name = $('#me-name').value.trim();
+    if (!name) { toast('Name required'); return; }
+    const eatenAt = buildLocalIso($('#me-date').value, $('#me-time').value);
+    const m = {
+      name, amount:+$('#me-amt').value||100, servings:1,
+      calories:+$('#me-cal').value||0, protein:+$('#me-p').value||0,
+      carbs:+$('#me-c').value||0, fat:+$('#me-f').value||0,
+      eaten_at: eatenAt,
+    };
+    try { await api('/api/meals', { method:'POST', body: JSON.stringify(m) }); toast('Logged'); closeModal('modal-generic'); refreshCurrent(); }
+    catch (e) { toast('Failed'); }
+  });
+}
+
+function buildLocalIso(dateStr, timeStr) {
+  // Build an ISO string in local time (no timezone suffix so server stores naive local time to match existing rows).
+  if (!dateStr || !timeStr) return null;
+  return `${dateStr}T${timeStr}:00`;
+}
+
+async function openVaultPicker() {
+  try { state.vault = await api('/api/vault'); } catch (e) { toast('Failed'); return; }
+  const body = $('#generic-body');
+  if (!state.vault.length) {
+    body.innerHTML = `<div class="grabber"></div><h2>Vault</h2><p class="sub">Your vault is empty. Scan a barcode to add items.</p><button class="btn-primary" onclick="document.getElementById('modal-generic').classList.remove('show')">Close</button>`;
+    openModal('modal-generic'); return;
+  }
+  body.innerHTML = `
+    <div class="grabber"></div>
+    <h2>From Vault</h2>
+    <p class="sub">Pick an item to log.</p>
+    <div class="meal-list" id="vault-list">
+      ${state.vault.map(v => `
+        <div class="meal-card">
+          <div class="avatar">${food2emoji(v.name)}</div>
+          <div class="body">
+            <div class="name">${escapeHtml(v.name)}</div>
+            <div class="meta">${Math.round(v.calories)} cal / 100g · ${v.quantity} left</div>
+          </div>
+          <button class="drag" data-log="${v.id}">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  openModal('modal-generic');
+  body.querySelectorAll('[data-log]').forEach(b => b.addEventListener('click', async () => {
+    const id = +b.dataset.log;
+    const amt = +(prompt('Amount in grams?', '100') || 100);
+    if (!amt) return;
+    try {
+      await api('/api/meals', { method:'POST', body: JSON.stringify({ food_item_id:id, amount:amt, servings: amt/100 }) });
+      toast('Logged'); closeModal('modal-generic'); refreshCurrent();
+    } catch (e) { toast('Failed'); }
+  }));
+}
+
+async function openSuggestions() {
+  const body = $('#generic-body');
+  body.innerHTML = `<div class="grabber"></div><h2>AI Meal Ideas</h2><p class="sub">Loading vault…</p>`;
+  openModal('modal-generic');
+  try { state.vault = await api('/api/vault'); } catch (e) { body.innerHTML = `<div class="grabber"></div><h2>AI Meal Ideas</h2><p class="sub">Failed to load vault.</p>`; return; }
+
+  if (!state.vault.length) {
+    body.innerHTML = `
+      <div class="grabber"></div>
+      <h2>AI Meal Ideas</h2>
+      <p class="sub">Your vault is empty. Add ingredients first (Scan or Enter Barcode), then come back.</p>
+      <button class="btn-primary" onclick="document.getElementById('modal-generic').classList.remove('show')">Close</button>`;
+    return;
+  }
+
+  // default: pre-select items with quantity > 0
+  const picks = new Set(state.vault.filter(v => (v.quantity||0) > 0).map(v => v.id));
+  // if nothing has positive quantity, pre-select all (user probably reset quantities)
+  if (!picks.size) state.vault.forEach(v => picks.add(v.id));
+
+  const mealTypes = ['Any','Breakfast','Lunch','Dinner','Snack','Dessert'];
+
+  const render = () => {
+    body.innerHTML = `
+      <div class="grabber"></div>
+      <h2>AI Meal Ideas</h2>
+      <p class="sub">Pick ingredients you have, then generate a meal.</p>
+      <div class="seg" id="mt-seg" style="margin:6px 0 12px">
+        ${mealTypes.map((t,i)=>`<button ${i===0?'class="active"':''} data-mt="${t.toLowerCase()}">${t}</button>`).join('')}
+      </div>
+      <div class="meal-list" id="ai-picks">
+        ${state.vault.map(v => `
+          <div class="meal-card pick ${picks.has(v.id)?'on':''}" data-pid="${v.id}" style="cursor:pointer;${picks.has(v.id)?'border-color:#000;':''}">
+            <div class="avatar">${food2emoji(v.name)}</div>
+            <div class="body">
+              <div class="name">${escapeHtml(v.name)}</div>
+              <div class="meta">${Math.round(v.calories)} cal · ${Math.round(v.protein||0)}P ${Math.round(v.fat||0)}F ${Math.round(v.carbs||0)}C per 100g · ${v.quantity||0} left</div>
+            </div>
+            <div class="pick-dot" style="width:22px;height:22px;border-radius:50%;border:2px solid ${picks.has(v.id)?'#000':'#ccc'};background:${picks.has(v.id)?'#000':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff">${picks.has(v.id)?'✓':''}</div>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-primary" id="gen-btn">Generate Meal (${picks.size} item${picks.size===1?'':'s'})</button>
+    `;
+    body.querySelectorAll('#ai-picks .pick').forEach(n => n.addEventListener('click', () => {
+      const id = +n.dataset.pid;
+      if (picks.has(id)) picks.delete(id); else picks.add(id);
+      render();
+    }));
+    body.querySelectorAll('#mt-seg button').forEach(n => n.addEventListener('click', () => {
+      body.querySelectorAll('#mt-seg button').forEach(x => x.classList.toggle('active', x===n));
+    }));
+    $('#gen-btn').addEventListener('click', () => generate());
+  };
+
+  const generate = async () => {
+    if (!picks.size) { toast('Pick at least one ingredient'); return; }
+    const mt = $('#mt-seg button.active')?.dataset.mt || 'any';
+    const params = new URLSearchParams();
+    params.set('num_suggestions','3');
+    params.set('item_ids', Array.from(picks).join(','));
+    if (mt && mt !== 'any') params.set('meal_type', mt);
+    body.innerHTML = `
+      <div class="grabber"></div>
+      <h2>Generating…</h2>
+      <p class="sub">Cooking up ${picks.size} ingredient${picks.size===1?'':'s'} into 3 meals. This can take 10–20s.</p>
+      <div style="display:flex;align-items:center;justify-content:center;padding:30px 0">
+        <div class="spinner" style="width:44px;height:44px;border:3px solid var(--surface-2);border-top-color:#000;border-radius:50%;animation:spin 1s linear infinite"></div>
+      </div>
+    `;
+    try {
+      const r = await api('/api/meals/suggest?' + params.toString());
+      renderSuggestions(r.suggestions || []);
+    } catch (e) { body.innerHTML = `<div class="grabber"></div><h2>AI Meal Ideas</h2><p class="sub">Failed to get suggestions.</p><button class="btn-primary" onclick="openSuggestions()">Try Again</button>`; }
+  };
+
+  let lastSuggestions = [];
+
+  const renderSuggestions = (items) => {
+    lastSuggestions = items;
+    if (!items.length) {
+      body.innerHTML = `<div class="grabber"></div><h2>No Ideas Yet</h2><p class="sub">Try picking different ingredients.</p><button class="btn-primary" id="back-btn">Back</button>`;
+      $('#back-btn').addEventListener('click', render);
+      return;
+    }
+    body.innerHTML = `
+      <div class="grabber"></div>
+      <h2>Choose a Meal</h2>
+      <p class="sub">${items.length} option${items.length===1?'':'s'} from your vault. Tap one to see how to cook it.</p>
+      <div class="meal-list">
+        ${items.map((s,i) => `
+          <div class="sug" data-idx="${i}" style="cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="avatar" style="width:40px;height:40px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;flex:0 0 auto">✨</div>
+              <div style="flex:1;min-width:0">
+                <div class="name" style="font-weight:800">${escapeHtml(s.name)}</div>
+                <div class="meta" style="font-size:13px;color:var(--ink-3)">${Math.round(s.total_calories)} cal · ${Math.round(s.total_protein)}P ${Math.round(s.total_fat)}F ${Math.round(s.total_carbs)}C</div>
+              </div>
+              <div style="color:var(--ink-3)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              </div>
+            </div>
+            ${s.description ? `<div style="font-size:13px;color:var(--ink-2);margin-top:8px">${escapeHtml(s.description)}</div>` : ''}
+            <div style="font-size:12px;color:var(--ink-3);margin-top:8px">
+              ${s.ingredients.map(ing => `${escapeHtml(ing.name)} ${Math.round(ing.amount_grams)}g`).join(' • ')}
+            </div>
+            ${!s.is_makeable ? `<div style="font-size:12px;color:var(--protein);margin-top:6px">⚠ Missing: ${s.missing_items.map(escapeHtml).join(', ')}</div>` : ''}
+          </div>`).join('')}
+      </div>
+      <button class="btn-primary" id="back-btn" style="background:var(--surface-2);color:var(--ink)">Pick Different Ingredients</button>
+    `;
+    body.querySelectorAll('.sug').forEach(b => b.addEventListener('click', () => {
+      renderDetail(+b.dataset.idx);
+    }));
+    $('#back-btn').addEventListener('click', render);
+  };
+
+  const renderDetail = (idx) => {
+    const s = lastSuggestions[idx];
+    if (!s) return;
+    const instructions = Array.isArray(s.instructions) && s.instructions.length
+      ? s.instructions
+      : ['Combine the ingredients in a bowl.', 'Mix until evenly distributed.', 'Serve immediately and enjoy.'];
+    body.innerHTML = `
+      <div class="grabber"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <button id="detail-back" class="icon-btn" style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <h2 style="flex:1;margin:0">${escapeHtml(s.name)}</h2>
+      </div>
+      ${s.description ? `<p class="sub">${escapeHtml(s.description)}</p>` : ''}
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 14px">
+        <div style="background:var(--surface);border-radius:12px;padding:10px;text-align:center">
+          <div style="font-size:18px;font-weight:800">${Math.round(s.total_calories)}</div>
+          <div style="font-size:10px;color:var(--ink-3);letter-spacing:.5px;text-transform:uppercase">cal</div>
+        </div>
+        <div style="background:var(--surface);border-radius:12px;padding:10px;text-align:center">
+          <div style="font-size:18px;font-weight:800">${Math.round(s.total_protein)}g</div>
+          <div style="font-size:10px;color:var(--ink-3);letter-spacing:.5px;text-transform:uppercase">Protein</div>
+        </div>
+        <div style="background:var(--surface);border-radius:12px;padding:10px;text-align:center">
+          <div style="font-size:18px;font-weight:800">${Math.round(s.total_carbs)}g</div>
+          <div style="font-size:10px;color:var(--ink-3);letter-spacing:.5px;text-transform:uppercase">Carbs</div>
+        </div>
+        <div style="background:var(--surface);border-radius:12px;padding:10px;text-align:center">
+          <div style="font-size:18px;font-weight:800">${Math.round(s.total_fat)}g</div>
+          <div style="font-size:10px;color:var(--ink-3);letter-spacing:.5px;text-transform:uppercase">Fat</div>
+        </div>
+      </div>
+
+      <h3 style="font-size:15px;font-weight:800;margin:14px 0 8px">Ingredients</h3>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:4px">
+        ${s.ingredients.map(ing => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface);border-radius:10px">
+            <div style="font-weight:600;font-size:14px">${escapeHtml(ing.name)}</div>
+            <div style="color:var(--ink-3);font-size:13px">${Math.round(ing.amount_grams)}g · ${Math.round(ing.calories)} cal</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <h3 style="font-size:15px;font-weight:800;margin:18px 0 8px">How to Cook</h3>
+      <ol style="padding-left:22px;display:flex;flex-direction:column;gap:6px;margin-bottom:6px">
+        ${instructions.map(step => `<li style="font-size:14px;line-height:1.4;color:var(--ink)">${escapeHtml(step)}</li>`).join('')}
+      </ol>
+
+      ${!s.is_makeable ? `<div style="font-size:12px;color:var(--protein);margin-top:10px">⚠ Missing from vault: ${s.missing_items.map(escapeHtml).join(', ')}</div>` : ''}
+
+      <button class="btn-primary" id="log-meal-btn" style="margin-top:16px">Log This Meal</button>
+      <button class="btn-primary" id="back-to-list-btn" style="background:var(--surface-2);color:var(--ink);margin-top:8px">Back to Options</button>
+    `;
+    $('#detail-back').addEventListener('click', () => renderSuggestions(lastSuggestions));
+    $('#back-to-list-btn').addEventListener('click', () => renderSuggestions(lastSuggestions));
+    $('#log-meal-btn').addEventListener('click', async () => {
+      const btn = $('#log-meal-btn');
+      btn.textContent = 'Logging…'; btn.disabled = true;
+      try {
+        await api('/api/meals/confirm', { method:'POST', body: JSON.stringify({ suggestion_index: idx }) });
+        toast('Meal logged');
+        closeModal('modal-generic');
+        refreshCurrent();
+      } catch (e) {
+        toast('Failed to log');
+        btn.textContent = 'Log This Meal'; btn.disabled = false;
+      }
+    });
+  };
+
+  render();
+}
+
+function refreshCurrent() {
+  const active = $$('.view.active')[0]?.id || '';
+  if (active.includes('dashboard')) loadDashboard();
+  else if (active.includes('foodlog')) loadFoodLog();
+  else if (active.includes('profile')) loadProfile();
+}
+
+/* ================= barcode scanner ================= */
+let quaggaRunning = false;
+async function openScanner() {
+  openModal('modal-scanner');
+  if (!window.Quagga) { toast('Scanner not loaded'); return; }
+  try {
+    await new Promise((resolve, reject) => {
+      Quagga.init({
+        inputStream: {
+          type: 'LiveStream',
+          target: $('#scanner-wrap'),
+          constraints: { facingMode: 'environment' }
+        },
+        decoder: { readers: ['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] },
+        locate: true,
+      }, (err) => err ? reject(err) : resolve());
+    });
+    Quagga.start(); quaggaRunning = true;
+    Quagga.onDetected(onBarcode);
+  } catch (e) { console.error(e); toast('Camera blocked'); closeScanner(); }
+}
+function closeScanner() {
+  if (quaggaRunning) { try { Quagga.offDetected(onBarcode); Quagga.stop(); } catch(e){} quaggaRunning = false; }
+  closeModal('modal-scanner');
+}
+async function onBarcode(res) {
+  const code = res?.codeResult?.code; if (!code) return;
+  closeScanner();
+  toast(`Scanned ${code}`);
+  try {
+    const r = await api(`/api/barcode/${code}`);
+    if (!r.found) { toast('Not in Open Food Facts'); return; }
+    const p = r.product;
+    if (confirm(`Found: ${p.name}\n${Math.round(p.calories)} cal/100g\n\nAdd to vault?`)) {
+      await api(`/api/barcode/${code}/add`, { method:'POST' });
+      toast('Added to vault');
+    }
+  } catch (e) { toast('Lookup failed'); }
+}
+$('#scanner-close').addEventListener('click', closeScanner);
+$('#barcode-btn').addEventListener('click', openBarcodeLookup);
+
+/* ================= boot ================= */
+loadSessions();
+if (chat.sessions.length) {
+  chat.currentId = chat.sessions[0].id;
+  chat.history = chat.sessions[0].messages.map(m => ({ role: m.role, content: m.content }));
+  renderChatFromSession(chat.sessions[0]);
+} else {
+  newSession();
+  chatIntro();
+}
+loadDashboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.db
+.env
+.claude/
+.planning/
+Untitled-1.txt
+.playwright-mcp/
+# Local Open Food Facts data dump (~6.9 GB parquet, ~1 GB TSV)
+*.parquet
+*.tsv
+# Materialized DuckDB search index (built on first use)
+food_index.duckdb*
+# DuckDB scratch directories from interrupted builds
+.tmp/
+*.duckdb.tmp/
+# macOS / Xcode user state
+.DS_Store
+xcuserdata/
+*.xcuserstate
